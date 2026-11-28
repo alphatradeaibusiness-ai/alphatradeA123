@@ -1,0 +1,122 @@
+
+# ==========================================
+# GoTriva Trade AI v415
+# Production Dockerfile | Render
+# ==========================================
+
+# 1. Extract Project
+FROM node:22-alpine AS unpack
+
+RUN apk add --no-cache unzip
+
+COPY gotriva-trade-ai-v415.zip /site.zip
+
+RUN mkdir /app-src && \
+    unzip -q /site.zip -d /app-src
+
+
+# 2. Build Application
+FROM node:22-alpine AS build
+
+WORKDIR /app
+
+COPY --from=unpack /app-src/ ./
+
+RUN npm ci
+
+
+# 3. Firebase Authentication
+ARG VITE_FIREBASE_API_KEY
+ARG VITE_FIREBASE_AUTH_DOMAIN
+ARG VITE_FIREBASE_PROJECT_ID
+ARG VITE_FIREBASE_APP_ID
+ARG VITE_AUTH_GOOGLE_ENABLED
+ARG VITE_AUTH_APPLE_ENABLED
+
+
+# 4. Business Configuration
+ARG VITE_ADMIN_EMAILS
+ARG VITE_CONTACT_EMAIL
+ARG VITE_BUSINESS_NAME
+ARG VITE_BUSINESS_ADDRESS
+ARG VITE_BUSINESS_COUNTRY
+ARG VITE_REFUND_DAYS
+
+
+# 5. Subscription & Payment Settings
+ARG VITE_PAY_LINK_MONTHLY
+ARG VITE_PAY_LINK_3M
+ARG VITE_PAY_LINK_6M
+ARG VITE_PAY_LINK_12M
+ARG VITE_PAY_LINK_CHANNEL
+ARG VITE_PAY_LINK_APEX
+ARG VITE_PAY_LINK_MAX
+ARG VITE_PAY_LINK_PRIME
+ARG VITE_PAY_LINK_SIGNALS_25
+ARG VITE_PAY_LINK_SIGNALS_50
+ARG VITE_PAY_LINK_SIGNALS_100
+ARG VITE_DEFAULT_PLAN
+ARG VITE_ENFORCE_PLANS
+
+
+# 6. Artificial Intelligence
+ARG VITE_AI_API_URL
+ARG VITE_AI_HEALTH_URL
+
+
+# 7. Binance Market Data
+ARG VITE_BINANCE_BASE_URL
+ARG VITE_BINANCE_FUTURES_URL
+ARG VITE_BINANCE_WS_URL
+
+
+# 8. Twelve Data & Market Settings
+ARG VITE_TD_SYMBOL_SPX500
+ARG VITE_TD_SYMBOL_US100
+ARG VITE_TD_SYMBOL_US30
+ARG VITE_TWELVEDATA_BASE_URL
+ARG VITE_MARKET_MODE
+ARG VITE_MARKET_REFRESH_SECONDS
+ARG VITE_MARKET_STREAMING
+
+
+# 9. Production Frontend Build
+RUN npm run build
+
+
+# 10. Production Server
+FROM node:22-alpine AS production
+
+WORKDIR /app
+
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/src ./src
+COPY --from=build /app/server ./server
+COPY --from=build /app/package.json ./
+
+
+# 11. Storage & Permissions
+RUN mkdir -p /app/server-data && \
+    chown -R node:node /app/server-data
+
+
+# 12. Production Environment
+ENV RUN_AS_USER=node
+ENV NODE_ENV=production
+ENV SERVER_PORT=8787
+
+EXPOSE 8787
+
+
+# 13. Server Health Check
+HEALTHCHECK \
+    --interval=30s \
+    --timeout=5s \
+    --start-period=20s \
+    --retries=3 \
+    CMD wget -q -O /dev/null \
+    http://127.0.0.1:8787/api/health || exit 1
+
+
+# 14. Start Application
+CMD ["node", "server/index.js", "--serve-dist"]
