@@ -1,7 +1,7 @@
 # Render builds the site from the zip in this repository (upload-from-phone setup).
 FROM node:22-alpine AS unpack
 RUN apk add --no-cache unzip
-COPY gotriva-v415-frontend.zip /site.zip
+COPY gotriva-trade-ai-v415.zip /site.zip
 RUN mkdir /app-src && unzip -q /site.zip -d /app-src
 
 FROM node:22-alpine AS build
